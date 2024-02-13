@@ -71,6 +71,7 @@ Assistant:"""
     output = output.strip().replace("\\", "")
 
     log.critical("TOOL CHOOSED")
+    log.critical(f"Output llm: {output}")
 
     try:
         output_json = json.loads(output)
@@ -83,7 +84,6 @@ Assistant:"""
 
     for t in allowed_tools:
         if t.name in output_json["action"]:
-            log.critical("wa")
             return (t, output_json["action_input"])
 
     return None
@@ -157,9 +157,12 @@ def agent_fast_reply(fast_reply: Dict, cat) -> Union[Dict, None]:
     prompt_suffix = cat.mad_hatter.execute_hook(
         "agent_prompt_suffix", prompts.MAIN_PROMPT_SUFFIX, cat=cat)
 
+    ollama = cat._llm
+    ollama.format = "json"
+    log.critical(f"Ollama: {ollama.format}")
+
     tool_result = execute_tool_agent(cat, agent_input, allowed_tools)
     print(tool_result)
-
     try:
         used_tools = None
         # If tools_result["output"] is None the LLM has used the fake tool none_of_the_others
@@ -186,17 +189,19 @@ def agent_fast_reply(fast_reply: Dict, cat) -> Union[Dict, None]:
         else:
             # If no relevant information has been obtained from the tools, the tools_output key is not added to the agent input
             agent_input["tools_output"] = ""
-
-        # Execute the memory chain
-        out = execute_memory_chain(
-            agent_input, prompt_prefix, prompt_suffix, cat)
-
-        # If some tools are used the intermediate step are added to the agent output
-        out["intermediate_steps"] = used_tools
-
-        return out
     except Exception as e:
         log.error(e)
+        return {"output": "wa"}
+
+    ollama.format = None
+    # Execute the memory chain
+    out = execute_memory_chain(
+        agent_input, prompt_prefix, prompt_suffix, cat)
+
+    # If some tools are used the intermediate step are added to the agent output
+    out["intermediate_steps"] = used_tools
+
+    return out
 
 
 def execute_memory_chain(agent_input, prompt_prefix, prompt_suffix, stray):
